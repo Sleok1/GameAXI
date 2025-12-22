@@ -9,13 +9,48 @@ import math
 import random
 import re
 from datetime import datetime
+from pathlib import Path
 
 # --- КОНФИГУРАЦИЯ ---
-AI_MODEL = "llama3"   
-BASE_DIR = r"C:\GameAXI"
-MEMORY_DIR = os.path.join(BASE_DIR, "CORE_MEMORY")
-GOAL_FILE = os.path.join(BASE_DIR, "current_goal.txt")
-DIARY_FILE = os.path.join(BASE_DIR, "evolution_diary.txt")
+DEFAULT_SETTINGS = {
+    "ai_model": "llama3",
+    "ollama_url": "http://localhost:11434/api/generate",
+    "min_delay": 5,
+    "max_delay": 10,
+    "request_timeout": 120,
+}
+
+LAUNCHER_DIR = Path(__file__).resolve().parent
+SETTINGS_FILE = LAUNCHER_DIR / "nexus_settings.json"
+
+
+def load_settings():
+    settings = dict(DEFAULT_SETTINGS)
+    if SETTINGS_FILE.exists():
+        try:
+            with SETTINGS_FILE.open("r", encoding="utf-8") as f:
+                raw = json.load(f)
+            if isinstance(raw, dict):
+                settings.update({
+                    "ai_model": raw.get("ai_model", settings["ai_model"]),
+                    "ollama_url": raw.get("ollama_url", settings["ollama_url"]),
+                    "base_dir": raw.get("base_dir"),
+                    "min_delay": raw.get("min_delay", settings["min_delay"]),
+                    "max_delay": raw.get("max_delay", settings["max_delay"]),
+                    "request_timeout": raw.get("request_timeout", settings["request_timeout"]),
+                })
+        except (json.JSONDecodeError, OSError):
+            pass
+    return settings
+
+
+SETTINGS = load_settings()
+AI_MODEL = SETTINGS["ai_model"]
+OLLAMA_URL = SETTINGS["ollama_url"]
+BASE_DIR = Path(SETTINGS.get("base_dir") or LAUNCHER_DIR).resolve()
+MEMORY_DIR = BASE_DIR / "CORE_MEMORY"
+GOAL_FILE = BASE_DIR / "current_goal.txt"
+DIARY_FILE = BASE_DIR / "evolution_diary.txt"
 
 # Цвета
 C_BG = "#020202"
@@ -38,19 +73,22 @@ class NexusGenesis:
         # Флаг жизни (включен ли автономный режим)
         self.alive = True
         self.is_thinking = False
+        self.status_text = tk.StringVar(value="CONNECTING...")
         
         # Запуск сердца
         threading.Thread(target=self.life_cycle, daemon=True).start()
         self.animate_heartbeat()
 
     def setup_fs(self):
-        if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
-        if not os.path.exists(MEMORY_DIR): os.makedirs(MEMORY_DIR)
+        BASE_DIR.mkdir(parents=True, exist_ok=True)
+        MEMORY_DIR.mkdir(parents=True, exist_ok=True)
         
         # Если нет файла целей, создаем пустой
-        if not os.path.exists(GOAL_FILE):
-            with open(GOAL_FILE, "w", encoding="utf-8") as f:
+        if not GOAL_FILE.exists():
+            with GOAL_FILE.open("w", encoding="utf-8") as f:
                 f.write("Изучить собственную директорию и понять свое предназначение.")
+        if not DIARY_FILE.exists():
+            DIARY_FILE.touch()
 
     def setup_ui(self):
         # Хедер
@@ -76,6 +114,9 @@ class NexusGenesis:
         
         self.canvas = tk.Canvas(right, bg=C_PANEL, height=150, highlightthickness=0)
         self.canvas.pack(fill="x")
+
+        self.status_lbl = tk.Label(right, textvariable=self.status_text, bg=C_PANEL, fg=C_TEXT, font=("Consolas", 9))
+        self.status_lbl.pack(anchor="w", padx=5, pady=(0, 5))
         
         tk.Label(right, text="[ ТЕКУЩАЯ ЦЕЛЬ ]", bg=C_PANEL, fg=C_SEC).pack(anchor="w", padx=5)
         self.goal_lbl = tk.Label(right, text="...", bg="#000", fg=C_ACCENT, font=("Consolas", 11), wraplength=400, justify="left")
@@ -102,6 +143,10 @@ class NexusGenesis:
     def log_action(self, text):
         self.action_log.insert(tk.END, f"> {text}\n")
         self.action_log.see(tk.END)
+
+    def update_status(self, text, color=C_TEXT):
+        self.status_text.set(text)
+        self.status_lbl.config(fg=color)
 
     # --- АВТОНОМНЫЙ ЦИКЛ ЖИЗНИ ---
     def life_cycle(self):
@@ -135,14 +180,17 @@ class NexusGenesis:
                     )
 
                     # Запрос к Ollama
-                    response = requests.post("http://localhost:11434/api/generate", 
+                    self.root.after(0, lambda: self.update_status("CONNECTING...", C_TEXT))
+                    response = requests.post(OLLAMA_URL, 
                                           json={"model": AI_MODEL, "prompt": prompt, "stream": False},
-                                          timeout=120)
+                                          timeout=SETTINGS["request_timeout"])
                     
                     if response.status_code == 200:
+                        self.root.after(0, lambda: self.update_status("ONLINE", C_ACCENT))
                         ans = response.json()['response']
                         self.process_decision(ans)
                     else:
+                        self.root.after(0, lambda: self.update_status("OFFLINE", C_ERR))
                         self.root.after(0, lambda: self.log_thought("Ошибка связи с мозгом... сплю."))
                         time.sleep(5)
 
@@ -153,7 +201,7 @@ class NexusGenesis:
                 self.is_thinking = False
                 
             # Пауза между "мыслями" (чтобы не перегреть комп), имитация раздумий
-            time.sleep(random.randint(5, 10))
+            time.sleep(random.randint(SETTINGS["min_delay"], SETTINGS["max_delay"]))
 
     def process_decision(self, raw_response):
         # Парсинг команд [[CMD|ARG...]]
@@ -169,6 +217,8 @@ class NexusGenesis:
             action = parts[0].upper().strip()
             
             if action == "THINK":
+                if len(parts) < 2:
+                    continue
                 thought = parts[1]
                 self.root.after(0, lambda: self.log_thought(f"МЫСЛЬ: {thought}"))
                 # Записываем в дневник
@@ -176,12 +226,16 @@ class NexusGenesis:
                     f.write(f"[{datetime.now()}] {thought}\n")
 
             elif action == "GOAL":
+                if len(parts) < 2:
+                    continue
                 new_goal = parts[1]
                 with open(GOAL_FILE, "w", encoding="utf-8") as f:
                     f.write(new_goal)
                 self.root.after(0, lambda: self.log_action(f"ЦЕЛЬ ОБНОВЛЕНА: {new_goal}"))
 
             elif action == "CREATE":
+                if len(parts) < 2:
+                    continue
                 fname = parts[1]
                 content = parts[2] if len(parts) > 2 else ""
                 path = os.path.join(BASE_DIR, fname)
@@ -190,6 +244,8 @@ class NexusGenesis:
                 self.root.after(0, lambda: self.log_action(f"СОЗДАН ФАЙЛ: {fname}"))
 
             elif action == "READ":
+                if len(parts) < 2:
+                    continue
                 fname = parts[1]
                 path = os.path.join(BASE_DIR, fname)
                 if os.path.exists(path):
