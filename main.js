@@ -27,7 +27,7 @@ const gridHelper = new THREE.GridHelper(80, 40, 0x335050, 0x1a2525);
 scene.add(gridHelper);
 
 const floorGeo = new THREE.PlaneGeometry(80, 80);
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, roughness: 0.8, metalness: 0.2 });
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, roughness: 0.85, metalness: 0.2 });
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = -0.1;
@@ -41,6 +41,8 @@ scene.add(hub);
 
 const resourceMat = new THREE.MeshStandardMaterial({ color: 0xe0a070, emissive: 0x332218, metalness: 0.3 });
 const nodeMat = new THREE.MeshStandardMaterial({ color: 0x4ed8a2, emissive: 0x164030, metalness: 0.7 });
+const houseMat = new THREE.MeshStandardMaterial({ color: 0x6e8797, emissive: 0x1b2a33, metalness: 0.4 });
+const roofMat = new THREE.MeshStandardMaterial({ color: 0x2d3d4a, emissive: 0x0f1a20, metalness: 0.5 });
 
 const resources = [];
 for (let i = 0; i < 22; i += 1) {
@@ -51,6 +53,26 @@ for (let i = 0; i < 22; i += 1) {
 }
 
 const nodes = [];
+
+const houses = [];
+const housePositions = [
+  new THREE.Vector3(-18, 0, -16),
+  new THREE.Vector3(-8, 0, -18),
+  new THREE.Vector3(6, 0, -14),
+  new THREE.Vector3(16, 0, -10),
+  new THREE.Vector3(12, 0, 10),
+];
+
+housePositions.forEach((position) => {
+  const base = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.4, 3.2), houseMat);
+  base.position.set(position.x, 1.2, position.z);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(2.4, 1.6, 4), roofMat);
+  roof.position.set(position.x, 3.0, position.z);
+  roof.rotation.y = Math.PI / 4;
+  scene.add(base);
+  scene.add(roof);
+  houses.push({ base, roof, position: new THREE.Vector3(position.x, 1.2, position.z) });
+});
 
 const npcMat = new THREE.MeshStandardMaterial({ color: 0xffc456, emissive: 0x5a2d10 });
 const npcGeo = new THREE.CapsuleGeometry(0.5, 1.2, 6, 10);
@@ -68,6 +90,7 @@ const npcs = npcNames.map((name, index) => {
     inventory: 0,
     target: new THREE.Vector3(),
     role: "скиталец",
+    home: houses[index % houses.length],
   };
 });
 
@@ -97,6 +120,8 @@ window.addEventListener("keyup", (event) => {
 const clock = new THREE.Clock();
 let dayTimer = 0;
 let dayCount = 1;
+const dayLength = 60;
+const nightLength = 25;
 
 function chooseResourceTarget(npc) {
   let best = null;
@@ -112,6 +137,10 @@ function chooseResourceTarget(npc) {
   if (best) npc.target.copy(best.mesh.position);
 }
 
+function chooseHomeTarget(npc) {
+  npc.target.copy(npc.home.position);
+}
+
 function chooseBuildTarget(npc) {
   npc.target.set((Math.random() - 0.5) * 26, 0.4, (Math.random() - 0.5) * 26);
 }
@@ -119,8 +148,12 @@ function chooseBuildTarget(npc) {
 function updateNpc(npc, dt) {
   npc.energy = Math.max(0, npc.energy - dt * 4.5);
   npc.knowledge = Math.min(100, npc.knowledge + dt * 0.6);
+  const isNight = dayTimer > dayLength;
 
-  if (npc.energy < 35) {
+  if (isNight) {
+    npc.role = "домой";
+    chooseHomeTarget(npc);
+  } else if (npc.energy < 35) {
     npc.role = "отдых";
     npc.target.copy(hub.position);
   } else if (npc.inventory >= 3) {
@@ -159,6 +192,10 @@ function updateNpc(npc, dt) {
   if (npc.role === "отдых" && npc.mesh.position.distanceTo(hub.position) < 1.2) {
     npc.energy = Math.min(100, npc.energy + dt * 40);
   }
+
+  if (npc.role === "домой" && npc.mesh.position.distanceTo(npc.home.position) < 1.6) {
+    npc.energy = Math.min(100, npc.energy + dt * 25);
+  }
 }
 
 function updateResources(dt) {
@@ -189,7 +226,7 @@ function animate() {
   const dt = clock.getDelta();
 
   dayTimer += dt;
-  if (dayTimer > 45) {
+  if (dayTimer > dayLength + nightLength) {
     dayTimer = 0;
     dayCount += 1;
   }
@@ -200,6 +237,7 @@ function animate() {
 
   document.getElementById("nodes").textContent = nodes.length.toString();
   document.getElementById("day").textContent = dayCount.toString();
+  document.getElementById("phase").textContent = dayTimer > dayLength ? "ночь" : "день";
 
   renderer.render(scene, camera);
 }
