@@ -27,7 +27,7 @@ const gridHelper = new THREE.GridHelper(80, 40, 0x335050, 0x1a2525);
 scene.add(gridHelper);
 
 const floorGeo = new THREE.PlaneGeometry(80, 80);
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x16211f, roughness: 0.8, metalness: 0.2 });
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, roughness: 0.8, metalness: 0.2 });
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = -0.1;
