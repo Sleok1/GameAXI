@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GameAXI 3D Micro World</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #0f1116;
+        color: #e7e7e7;
+        font-family: "Inter", "Segoe UI", sans-serif;
+      }
+      #overlay {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        background: rgba(10, 12, 16, 0.65);
+        border: 1px solid rgba(120, 180, 255, 0.3);
+        padding: 12px 16px;
+        border-radius: 12px;
+        box-shadow: 0 0 24px rgba(40, 120, 255, 0.15);
+      }
+      #overlay h1 {
+        font-size: 18px;
+        margin: 0 0 6px;
+      }
+      #overlay p {
+        margin: 4px 0;
+        font-size: 14px;
+        color: #cdd7e0;
+      }
+      #overlay span {
+        color: #8fd3ff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="overlay">
+      <h1>GameAXI 3D Micro World</h1>
+      <p>WASD — движение, мышь — оглядеться.</p>
+      <p>NPC живут в домах, строят узлы и перерабатывают ресурсы.</p>
+      <p>Узлы: <span id="nodes">0</span> · День: <span id="day">1</span> · Фаза: <span id="phase">день</span></p>
+    </div>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
