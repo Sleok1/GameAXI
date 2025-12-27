@@ -1,8 +1,0 @@
-[19:44:23] [SYSTEM] Core started safely.
-[19:45:47] [SYSTEM] Core started safely.
-[19:47:05] [SYSTEM] Ядро синхронизировано. Автономный режим готов.
-[19:47:10] [AI_ERROR] Model not found: gpt-3.5-turbo
-[19:49:41] [SYSTEM] Core Ready. Offline/Online modules synchronized.
-[19:51:03] [SYSTEM] Core v6.1 Synchronized.
-[19:53:01] [SYSTEM] Core v6.2 Online. Filtering enabled.
-[19:54:11] [SYSTEM] Core v6.3 Synchronized. Cleanup active.
